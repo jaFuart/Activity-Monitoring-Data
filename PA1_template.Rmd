@@ -1,0 +1,153 @@
+---
+title: "Activity Monitoring Data (RStudio markdown example)"
+author: "Shevarev, M.V."
+date: "27 12 2021"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+It is now possible to collect a large amount of data about personal movement 
+using activity monitoring devices such as a [Fitbit](https://www.fitbit.com/global/us/home), 
+[Nike Fuelband](https://www.nike.com/help/a/why-cant-i-sync), or 
+[Jawbone Up](https://www.jawbone.com/up). These type of devices are part of the "quantified self" movement -- a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The data for this assignment can be downloaded from the course web site:
+
+Dataset: [Activity monitoring data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip) [52K]
+
+The variables included in this dataset are:
+
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+## Loading and preprocessing the data
+```{R simulation, echo = FALSE, results = "hide", warning=FALSE,  message=FALSE}
+library(knitr)
+library(Hmisc)
+library(gridExtra)
+```
+
+```{R}
+# Downloading the data and preparing the data
+currdir <- "./data"
+if(!dir.exists("./data")) dir.create("./data")
+setwd(currdir)
+
+dburl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+zip <- "Activity Monitoring Dataset.zip"
+download.file(dburl, zip)
+
+if(file.exists(zip)) unzip(zip)
+
+# Read data
+db <-  read.csv("activity.csv")
+
+# Some information
+str(db)
+```
+
+```{R}
+# Convert date to Date
+db$date = as.Date(db$date, "%Y-%m-%d")
+
+# View summary
+kable(summary(db), caption = "Summary of Data", align = "c")
+```
+
+## What is mean total number of steps taken per day?
+
+```{R, results = 'asis'}
+# Aggregate steps by date
+totSteps = tapply(db$steps, db$date, FUN = sum, na.rm = TRUE)
+
+# View the geometry of distribuction
+p1 = qplot(totSteps, binwidth = 1000,
+           xlab = "Total of Steps", ylab = "Frequency") + 
+    ggtitle("Total Number Of Steps Taken\nEach Day") +
+    theme(plot.title = element_text(hjust = 0.5))
+p1
+```
+
+```{R}
+# Get mean
+mean(totSteps, na.rm = TRUE)
+```
+
+```{R}
+# Get median
+median(totSteps, na.rm = TRUE)
+```
+
+## What is the average daily activity pattern?
+
+```{R}
+# Get averages
+averages = aggregate(x = list(steps = db$steps), 
+                     by = list(interval = db$interval), 
+                     FUN = mean, na.rm = TRUE)
+
+# Plot
+qplot(interval, steps, data = averages, xlab = "5 minute interval", 
+      ylab = "Average number of steps taken", geom = "line") +
+    ggtitle("Steps vs. Interval") +
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{R}
+# Max value
+kable(averages[which.max(averages$steps), ], align = "c", caption = "Max Value")
+```
+
+## Imputing missing values
+
+```{R, fig.width = 10}
+# Create secundary db
+db2 = db
+
+# Impute data
+db2$steps = impute(db$steps, mean)
+
+# Aggregate steps by date
+fin = tapply(db2$steps, db2$date, FUN = sum)
+
+# View the geometry of distribuction
+p2 = qplot(fin, binwidth = 1000, 
+           xlab = "Total of Steps", ylab = "Frequency") +
+    ggtitle("Total Number Of Steps Taken\nEach Day (imputed by mean)") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+```{R}
+# Get mean
+mean(fin)
+```
+
+```{R}
+# Get median
+median(fin)
+```
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+```{R, fig.width = 10}
+# Create weekdays
+db2$weekdays = weekdays(db2$date)
+
+# Ceate dayType
+db2$dayType = ifelse(db2$weekdays == "воскресенье" | db2$weekdays == "суббота",
+                     "Weekend", "Weekday")
+
+averages2 = aggregate(steps ~ interval + dayType, mean, data = db2)
+
+qplot(interval, steps, data = averages2, geom = "line", facets = . ~ dayType,
+      xlab = "5 minute interval", ylab = "avarage number of steps")
+```
